@@ -1,0 +1,1858 @@
+Buatkan aplikasi web Penerimaan Mahasiswa Baru (PMB) menggunakan  dengan spesifikasi berikut:
+
+=== TECHNICAL REQUIREMENTS ===
+- Framework: Laravel 5.8 (compatible dengan PHP 7.4)
+- PHP Version: 7.4
+- Database: MySQL
+- Authentication: MANUAL (tanpa Laravel Auth package)
+- Frontend: Bootstrap 4 + AdminLTE 3
+- Icons: Font Awesome 5
+- Additional Libraries: DataTables, Select2, SweetAlert2
+
+=== COLOR SCHEME ===
+Primary: #1181C3
+Secondary: #081F3F
+Accent: #87CFE5
+Background: #F4F6F9
+Text: #333333
+Success: #28A745
+Danger: #DC3545
+Warning: #FFC107
+Info: #17A2B8
+
+=== TYPOGRAPHY ===
+Heading: Montserrat, Arial, sans-serif (bold)
+Body: Arial, sans-serif (regular)
+Font Size: Base 14px
+
+=== DATABASE STRUCTURE (REVISI) ===
+
+1. Table: users
+   - id (PK, auto increment)
+   - username (unique, varchar 50, NOT NULL)
+   - password (hashed dengan bcrypt, varchar 255, NOT NULL)
+   - role (enum: 'admin', 'user', default 'user')
+   - is_active (boolean, default true)
+   - last_login (timestamp, nullable)
+   - reset_token (varchar 100, nullable, unique)
+   - reset_token_expired (timestamp, nullable)
+   - remember_token (varchar 100, nullable)
+   - created_at (timestamp)
+   - updated_at (timestamp)
+   - deleted_at (timestamp, nullable) // soft delete
+
+   INDEX:
+   - idx_username (username)
+   - idx_reset_token (reset_token)
+
+2. Table: profiles
+   - id (PK, auto increment)
+   - user_id (FK to users, unique, ON DELETE CASCADE)
+   - nama_lengkap (varchar 150, NOT NULL)
+   - jenis_kelamin (enum: 'L', 'P', NOT NULL)
+   - program_studi (varchar 100, default 'Teknologi Radiologi D4')
+   - tempat_lahir (varchar 100, NOT NULL)
+   - tanggal_lahir (date, NOT NULL)
+   - asal_sekolah (varchar 150, NOT NULL)
+   - tahun_kelulusan (year, NOT NULL)
+   - alamat (text, NOT NULL)
+   - email_aktif (varchar 100, NOT NULL)
+   - no_hp_aktif (varchar 15, NOT NULL)
+   - foto_profil (varchar 255, nullable) // 4x3 cm
+   - is_complete (boolean, default false)
+   - completed_at (timestamp, nullable)
+   - created_at (timestamp)
+   - updated_at (timestamp)
+
+   INDEX:
+   - idx_user_id (user_id)
+   - idx_email (email_aktif)
+
+3. Table: jenis_berkas
+   - id (PK, auto increment)
+   - nama_berkas (varchar 100, NOT NULL)
+   - kode (varchar 50, unique, NOT NULL)
+   - is_required (boolean, default true)
+   - keterangan (text, nullable)
+   - urutan (integer, default 0)
+   - is_active (boolean, default true)
+   - created_at (timestamp)
+   - updated_at (timestamp)
+
+   INDEX:
+   - idx_kode (kode)
+   - idx_urutan (urutan)
+
+4. Table: berkas_mahasiswa
+   - id (PK, auto increment)
+   - user_id (FK to users, ON DELETE CASCADE)
+   - jenis_berkas_id (FK to jenis_berkas, ON DELETE RESTRICT)
+   - file_path (varchar 255, NOT NULL)
+   - file_name (varchar 255, NOT NULL)
+   - file_original_name (varchar 255, NOT NULL)
+   - file_size (integer, NOT NULL) // in bytes
+   - mime_type (varchar 50, NOT NULL)
+   - status (enum: 'pending', 'verified', 'rejected', default 'pending')
+   - catatan_admin (text, nullable)
+   - uploaded_at (timestamp, NOT NULL)
+   - verified_at (timestamp, nullable)
+   - verified_by (FK to users, nullable)
+   - created_at (timestamp)
+   - updated_at (timestamp)
+
+   INDEX:
+   - idx_user_id (user_id)
+   - idx_status (status)
+   - idx_jenis_berkas_id (jenis_berkas_id)
+   - UNIQUE KEY unique_user_berkas (user_id, jenis_berkas_id)
+
+5. Table: pengaturan_ujian
+   - id (PK, auto increment)
+   - tahun_akademik (varchar 9, NOT NULL) // e.g., '2025/2026'
+   - gelombang (integer, NOT NULL)
+   - tanggal_ujian (date, NOT NULL)
+   - waktu_mulai (time, NOT NULL)
+   - waktu_selesai (time, NOT NULL)
+   - tempat_ujian (varchar 255, NOT NULL)
+   - alamat_lengkap (text, NOT NULL)
+   - kuota (integer, default 0)
+   - peraturan_ujian (text, nullable) // HTML content
+   - is_active (boolean, default false)
+   - created_at (timestamp)
+   - updated_at (timestamp)
+
+   INDEX:
+   - idx_is_active (is_active)
+   - UNIQUE KEY unique_tahun_gelombang (tahun_akademik, gelombang)
+
+6. Table: kartu_ujian
+   - id (PK, auto increment)
+   - user_id (FK to users, unique, ON DELETE CASCADE)
+   - pengaturan_ujian_id (FK to pengaturan_ujian, ON DELETE RESTRICT)
+   - nomor_peserta (varchar 20, unique, NOT NULL)
+   - ruangan (varchar 50, nullable)
+   - nomor_kursi (varchar 10, nullable)
+   - barcode (varchar 255, nullable)
+   - generated_at (timestamp, NOT NULL)
+   - generated_by (FK to users, NOT NULL)
+   - downloaded_at (timestamp, nullable)
+   - download_count (integer, default 0)
+   - created_at (timestamp)
+   - updated_at (timestamp)
+
+   INDEX:
+   - idx_nomor_peserta (nomor_peserta)
+   - idx_user_id (user_id)
+
+7. Table: kelulusan
+   - id (PK, auto increment)
+   - user_id (FK to users, unique, ON DELETE CASCADE)
+   - pengaturan_ujian_id (FK to pengaturan_ujian, ON DELETE RESTRICT)
+   - status (enum: 'lulus', 'tidak_lulus', 'pending', default 'pending')
+   - nilai (decimal 5,2, nullable)
+   - catatan (text, nullable)
+   - tanggal_pengumuman (datetime, nullable)
+   - is_published (boolean, default false)
+   - diumumkan_oleh (FK to users, nullable)
+   - created_at (timestamp)
+   - updated_at (timestamp)
+
+   INDEX:
+   - idx_user_id (user_id)
+   - idx_status (status)
+   - idx_is_published (is_published)
+
+8. Table: activity_logs
+   - id (PK, auto increment)
+   - user_id (FK to users, nullable, ON DELETE SET NULL)
+   - username (varchar 50, NOT NULL) // untuk trace jika user dihapus
+   - activity_type (varchar 50, NOT NULL) // 'login', 'upload', 'delete', etc
+   - description (text, nullable)
+   - url (varchar 255, nullable)
+   - method (varchar 10, nullable) // GET, POST, PUT, DELETE
+   - ip_address (varchar 45, NOT NULL)
+   - user_agent (text, nullable)
+   - created_at (timestamp)
+
+   INDEX:
+   - idx_user_id (user_id)
+   - idx_activity_type (activity_type)
+   - idx_created_at (created_at)
+
+9. Table: sessions (Laravel default untuk session management)
+   - id (varchar 255, PK)
+   - user_id (bigint unsigned, nullable)
+   - ip_address (varchar 45, nullable)
+   - user_agent (text, nullable)
+   - payload (text, NOT NULL)
+   - last_activity (integer, NOT NULL)
+
+   INDEX:
+   - idx_user_id (user_id)
+   - idx_last_activity (last_activity)
+
+=== JENIS BERKAS (SEED DATA) ===
+
+Berkas Wajib (is_required = true):
+1.  kode: 'RAPOR_1', nama: 'Rapor Semester 1', urutan: 1
+2.  kode: 'RAPOR_2', nama: 'Rapor Semester 2', urutan: 2
+3.  kode: 'RAPOR_3', nama: 'Rapor Semester 3', urutan: 3
+4.  kode: 'RAPOR_4', nama: 'Rapor Semester 4', urutan: 4
+5.  kode: 'RAPOR_5', nama: 'Rapor Semester 5', urutan: 5
+6.  kode: 'KK', nama: 'Kartu Keluarga', urutan: 6
+7.  kode: 'SURAT_KESEHATAN', nama: 'Surat Kesehatan/MCU', urutan: 7
+8.  kode: 'PAS_FOTO', nama: 'Pas Foto 3x4', urutan: 8
+
+Berkas Opsional (is_required = false):
+9.  kode: 'KTP_PESERTA', nama: 'KTP (jika memiliki)', urutan: 9
+10. kode: 'SKTM', nama: 'SKTM (Surat Keterangan Tidak Mampu)', urutan: 10
+11. kode: 'SURAT_YATIM', nama: 'Surat Keterangan Yatim/Piatu', urutan: 11
+12. kode: 'SERTIFIKAT_HAFIZ', nama: 'Sertifikat Hafiz Quran', urutan: 12
+13. kode: 'SERTIFIKAT_LOMBA', nama: 'Sertifikat Perlombaan Tingkat Kab/Kota', urutan: 13
+
+=== AUTHENTICATION MANUAL (TANPA LARAVEL AUTH) ===
+
+1. Struktur Folder untuk Auth:
+   app/Http/Controllers/Auth/
+   - LoginController.php
+   - RegisterController.php
+   - ResetPasswordController.php
+   - LogoutController.php
+
+2. LoginController.php:
+   - Method: showLoginForm() - tampilkan halaman login
+   - Method: login(Request $request) - proses login
+     * Validasi input username & password
+     * Cari user berdasarkan username
+     * Verifikasi password dengan Hash::check()
+     * Cek is_active = true
+     * Simpan data user ke session
+     * Update last_login
+     * Log activity 'login'
+     * Redirect sesuai role (admin -> /admin/dashboard, user -> /user/dashboard)
+   - Method: authenticated() - hook setelah login berhasil
+
+3. RegisterController.php:
+   - Method: showRegisterForm() - tampilkan halaman register
+   - Method: register(Request $request) - proses register
+     * Validasi: username (unique, min 5, max 50, alpha_dash), 
+                 password (min 8, confirmed)
+     * Hash password dengan Hash::make()
+     * Insert ke table users dengan role 'user'
+     * Auto login setelah register
+     * Log activity 'register'
+     * Redirect ke /user/profile (untuk lengkapi profil)
+
+4. ResetPasswordController.php:
+   - Method: showRequestForm() - tampilkan form request reset (input username)
+   - Method: sendResetLink(Request $request) - generate reset token
+     * Validasi username exists
+     * Generate unique token dengan Str::random(60)
+     * Set reset_token & reset_token_expired (1 jam dari sekarang)
+     * Update users table
+     * Tampilkan link reset di halaman (karena tanpa email)
+     * Format link: /reset-password/{token}
+   - Method: showResetForm($token) - tampilkan form reset password
+     * Validasi token exists dan belum expired
+     * Tampilkan form password baru + confirm
+   - Method: reset(Request $request) - proses reset password
+     * Validasi token & password
+     * Update password dengan hash baru
+     * Clear reset_token & reset_token_expired
+     * Log activity 'reset_password'
+     * Redirect ke login dengan success message
+
+5. LogoutController.php:
+   - Method: logout() - proses logout
+     * Log activity 'logout'
+     * Hapus session
+     * Redirect ke login page
+
+6. Session Management:
+   - Simpan di session: user_id, username, role, nama_lengkap (dari profile)
+   - Helper function: auth_user() untuk get current user
+   - Helper function: auth_check() untuk cek sudah login atau belum
+   - Helper function: auth_role() untuk get role
+   - Middleware: GuestMiddleware (redirect jika sudah login)
+   - Middleware: AuthMiddleware (redirect jika belum login)
+   - Middleware: RoleMiddleware (cek role admin/user)
+
+7. Helper File (app/Helpers/AuthHelper.php):
+```php
+if (!function_exists('auth_user')) {
+    function auth_user() {
+        return session('user');
+    }
+}
+
+if (!function_exists('auth_check')) {
+    function auth_check() {
+        return session()->has('user');
+    }
+}
+
+if (!function_exists('auth_id')) {
+    function auth_id() {
+        return session('user.id');
+    }
+}
+
+if (!function_exists('auth_role')) {
+    function auth_role() {
+        return session('user.role');
+    }
+}
+
+if (!function_exists('is_admin')) {
+    function is_admin() {
+        return auth_role() === 'admin';
+    }
+}
+
+if (!function_exists('is_user')) {
+    function is_user() {
+        return auth_role() === 'user';
+    }
+}
+```
+
+8. Middleware (app/Http/Middleware/):
+
+   AuthMiddleware.php:
+   - Cek session user, jika tidak ada redirect ke /login
+   - Jika ada, inject user data ke view (View::share)
+
+   GuestMiddleware.php:
+   - Cek session user, jika ada redirect sesuai role
+   - Admin -> /admin/dashboard
+   - User -> /user/dashboard
+
+   RoleMiddleware.php:
+   - Cek role user
+   - Parameter: admin atau user
+   - Jika tidak sesuai, redirect dengan error 403
+
+9. Routes (routes/web.php):
+```php
+// Guest Routes (sudah login tidak bisa akses)
+Route::middleware('guest')->group(function() {
+    Route::get('/', 'HomeController@index')->name('home');
+    Route::get('/login', 'Auth\LoginController@showLoginForm')->name('login');
+    Route::post('/login', 'Auth\LoginController@login')->name('login.post');
+    Route::get('/register', 'Auth\RegisterController@showRegisterForm')->name('register');
+    Route::post('/register', 'Auth\RegisterController@register')->name('register.post');
+    Route::get('/forgot-password', 'Auth\ResetPasswordController@showRequestForm')->name('password.request');
+    Route::post('/forgot-password', 'Auth\ResetPasswordController@sendResetLink')->name('password.reset.link');
+    Route::get('/reset-password/{token}', 'Auth\ResetPasswordController@showResetForm')->name('password.reset');
+    Route::post('/reset-password', 'Auth\ResetPasswordController@reset')->name('password.update');
+});
+
+// Auth Routes
+Route::middleware('auth')->group(function() {
+    Route::post('/logout', 'Auth\LogoutController@logout')->name('logout');
+    
+    // Admin Routes
+    Route::middleware('role:admin')->prefix('admin')->name('admin.')->group(function() {
+        Route::get('/dashboard', 'Admin\DashboardController@index')->name('dashboard');
+        // ... admin routes lainnya
+    });
+    
+    // User Routes
+    Route::middleware('role:user')->prefix('user')->name('user.')->group(function() {
+        Route::get('/dashboard', 'User\DashboardController@index')->name('dashboard');
+        // ... user routes lainnya
+    });
+});
+```
+
+=== FITUR & ALUR APLIKASI (REVISI) ===
+
+## HALAMAN PUBLIK (Tanpa Login):
+
+1. Landing Page (/)
+   - Hero section dengan background gradient (Primary + Accent)
+   - Judul: "Penerimaan Mahasiswa Baru"
+   - Sub judul: "Program Studi Teknologi Radiologi D4"
+   - CTA Button: "Daftar Sekarang" -> /register
+   - CTA Button: "Login" -> /login
+   - Section: Informasi Kontak & Alamat Kampus
+   - Section: Timeline Pendaftaran (jika ada)
+   - Footer: Copyright + Social Media Links
+
+2. Register Page (/register)
+   - Form minimal:
+     * Username (required, min 5, max 50, alpha_dash, unique)
+     * Password (required, min 8)
+     * Konfirmasi Password (required, sama dengan password)
+   - Validasi real-time di client-side
+   - CAPTCHA sederhana (bisa angka/huruf) untuk prevent bot
+   - Button: Daftar
+   - Link: "Sudah punya akun? Login di sini"
+   - Setelah register berhasil:
+     * Auto login
+     * Redirect ke /user/profile dengan alert: "Silakan lengkapi profil Anda"
+
+3. Login Page (/login)
+   - Form:
+     * Username (required)
+     * Password (required)
+     * Remember Me (checkbox)
+   - CAPTCHA sederhana
+   - Button: Login
+   - Link: "Lupa Password?"
+   - Link: "Belum punya akun? Daftar di sini"
+   - Redirect setelah login:
+     * Admin -> /admin/dashboard
+     * User -> /user/dashboard
+
+4. Forgot Password Page (/forgot-password)
+   - Form:
+     * Username (required)
+   - Button: Kirim Link Reset
+   - Setelah submit:
+     * Jika username ditemukan:
+       - Generate token
+       - Tampilkan link reset di halaman (karena tanpa email)
+       - Alert: "Link reset password Anda: [URL]. Salin dan gunakan dalam 1 jam."
+       - Berikan button "Salin Link"
+     * Jika username tidak ditemukan:
+       - Error: "Username tidak ditemukan"
+
+5. Reset Password Page (/reset-password/{token})
+   - Validasi token expired atau tidak
+   - Jika expired: redirect ke /forgot-password dengan error
+   - Form:
+     * Password Baru (required, min 8)
+     * Konfirmasi Password (required)
+   - Hidden input: token
+   - Button: Reset Password
+   - Setelah berhasil: redirect ke /login dengan success message
+
+## ROLE: USER (Mahasiswa/Pendaftar)
+
+### 1. Dashboard (/user/dashboard)
+   - Welcome Message: "Selamat datang, {Nama Lengkap/Username}"
+   - Row 1: 4 Widget Cards (col-md-3)
+     * Widget 1: Status Profil
+       - Icon: user
+       - Title: "Status Profil"
+       - Value: "Lengkap" (green) atau "Belum Lengkap" (red)
+       - Footer: "Lihat Profil" (link ke /user/profile)
+     
+     * Widget 2: Progress Pemberkasan
+       - Icon: file-alt
+       - Title: "Pemberkasan"
+       - Value: "X/Y Berkas" (X = verified, Y = wajib)
+       - Progress bar (%)
+       - Footer: "Upload Berkas" (link ke /user/berkas)
+     
+     * Widget 3: Kartu Ujian
+       - Icon: id-card
+       - Title: "Kartu Ujian"
+       - Value: "Tersedia" (green) atau "Belum Tersedia" (gray)
+       - Footer: "Download" (jika tersedia) atau "Lengkapi Berkas"
+     
+     * Widget 4: Status Kelulusan
+       - Icon: trophy (jika lulus) atau info-circle (pending)
+       - Title: "Kelulusan"
+       - Value: "Pending" (gray) / "Lulus" (green) / "Tidak Lulus" (red)
+       - Footer: "Lihat Detail" (jika sudah ada pengumuman)
+   
+   - Row 2: Card Timeline Aktivitas
+     * Title: "Aktivitas Terakhir"
+     * List 10 aktivitas terakhir dengan icon & timestamp
+     * Format: "Anda {activity} pada {tanggal jam}"
+   
+   - Row 3: Informasi Penting (jika ada)
+     * Pengumuman dari admin
+     * Deadline upload berkas
+     * Jadwal ujian
+
+### 2. Profil Saya (/user/profile)
+   - Breadcrumb: Dashboard / Profil Saya
+   - Alert jika profil belum lengkap (warning banner di atas)
+   
+   - Card: Informasi Profil
+     * Form dengan layout 2 kolom:
+       
+       Kolom Kiri:
+       - Nama Lengkap (text, required)
+       - Jenis Kelamin (radio: Laki-laki/Perempuan, required)
+       - Tempat Lahir (text, required)
+       - Tanggal Lahir (datepicker, required)
+       - Asal Sekolah (text, required)
+       - Tahun Kelulusan (year picker, required)
+       
+       Kolom Kanan:
+       - Program Studi (disabled, default: Teknologi Radiologi D4)
+       - Email Aktif (email, required)
+       - No HP Aktif (text, required, format: 08xxxxxxxxxx)
+       - Alamat Lengkap (textarea, required)
+       - Foto Profil 4x3 (file input, image preview)
+         * Keterangan: Max 2MB, Format JPG/PNG
+         * Preview thumbnail setelah pilih file
+         * Button: "Pilih Foto" + "Hapus Foto"
+   
+   - Button: "Simpan Profil" (btn-primary, large)
+   - Button: "Batal" (btn-secondary)
+   
+   - Validasi:
+     * Semua field wajib diisi kecuali foto
+     * Email format valid
+     * No HP angka, min 10 digit, max 13 digit
+     * Foto max 2MB, hanya jpg/jpeg/png
+   
+   - Setelah save:
+     * Set is_complete = true jika semua terisi
+     * Update completed_at
+     * Redirect ke dashboard dengan success message
+     * Log activity 'update_profile'
+
+### 3. Pemberkasan (/user/berkas)
+   - Breadcrumb: Dashboard / Pemberkasan
+   
+   - Alert di atas:
+     * Jika profil belum lengkap: "Anda harus melengkapi profil terlebih dahulu" (danger) + button ke /user/profile
+     * Jika sudah lengkap: "Silakan upload berkas berikut. Berkas bertanda (*) wajib diupload dan diverifikasi."
+   
+   - Progress Card:
+     * Progress bar total: "Progress: X/Y berkas wajib terverifikasi"
+     * Percentage dengan warna (0-50% red, 51-99% orange, 100% green)
+   
+   - List Berkas (Card untuk setiap jenis berkas):
+     * Layout: 2 card per row (col-md-6)
+     * Setiap card berisi:
+       - Header: Nama Berkas + Badge (Wajib*/Opsional)
+       - Body:
+         * Jika belum upload:
+           - Icon upload (gray, besar)
+           - Text: "Belum diupload"
+           - Form upload:
+             * File input (hidden, trigger dengan button)
+             * Button: "Pilih File" (btn-outline-primary)
+             * Preview nama file setelah pilih
+             * Button: "Upload" (btn-primary, show setelah pilih file)
+         
+         * Jika sudah upload - status PENDING:
+           - Icon clock (orange)
+           - Text: "Menunggu Verifikasi"
+           - Info: Uploaded at {tanggal}
+           - Link: "Lihat File" (modal preview)
+           - Button: "Upload Ulang" (btn-sm, btn-warning)
+         
+         * Jika sudah upload - status VERIFIED:
+           - Icon check-circle (green)
+           - Text: "Terverifikasi"
+           - Info: Verified at {tanggal}
+           - Link: "Lihat File" (modal preview)
+           - Button: "Upload Ulang" (btn-sm, btn-secondary, disabled atau dengan konfirmasi)
+         
+         * Jika sudah upload - status REJECTED:
+           - Icon times-circle (red)
+           - Text: "Ditolak"
+           - Alert: Catatan dari admin: "{catatan_admin}"
+           - Info: Uploaded at {tanggal}
+           - Link: "Lihat File" (modal preview)
+           - Button: "Upload Ulang" (btn-sm, btn-danger)
+   
+   - Modal Preview File:
+     * Untuk PDF: embed PDF viewer
+     * Untuk Image: tampilkan gambar fullsize
+     * Button: Download, Close
+   
+   - Validasi Upload:
+     * File required
+     * Max 5MB
+     * Format: PDF, JPG, JPEG, PNG
+     * Client-side & server-side validation
+   
+   - Setelah upload berhasil:
+     * Refresh card dengan status PENDING
+     * Success toast notification
+     * Log activity 'upload_berkas'
+     * Update progress bar
+
+### 4. Kartu Ujian (/user/kartu-ujian)
+   - Breadcrumb: Dashboard / Kartu Ujian
+   
+   - Logika akses:
+     * Cek semua berkas WAJIB sudah status VERIFIED
+     * Cek kartu ujian sudah di-generate oleh admin
+     * Jika belum memenuhi:
+       - Tampilkan alert: "Kartu ujian akan tersedia setelah semua berkas wajib terverifikasi dan admin men-generate nomor peserta Anda."
+       - Button disabled: "Download Kartu Ujian"
+       - Link: "Lihat Status Berkas"
+   
+   - Jika sudah tersedia:
+     * Preview Kartu Ujian (A4 size preview):
+       - Header:
+         * Logo Institusi (kiri)
+         * Nama Institusi (center, bold, large)
+         * Text: "KARTU PESERTA UJIAN" (center, bold)
+         * Text: "Penerimaan Mahasiswa Baru {Tahun Akademik}" (center)
+       
+       - Body (layout 2 kolom):
+         * Kolom Kiri (40%):
+           - Foto peserta 4x3 cm (border)
+           - Barcode/QR Code nomor peserta (di bawah foto)
+         
+         * Kolom Kanan (60%):
+           - Nomor Peserta: {nomor_peserta} (bold, besar)
+           - Nama: {nama_lengkap}
+           - Program Studi: {program_studi}
+           - Asal Sekolah: {asal_sekolah}
+           - Tempat/Tgl Lahir: {tempat_lahir}, {tanggal_lahir}
+       
+       - Informasi Ujian (full width):
+         * Hari/Tanggal: {hari}, {tanggal_ujian}
+         * Waktu: {waktu_mulai} - {waktu_selesai} WIB
+         * Tempat: {tempat_ujian}
+         * Alamat: {alamat_lengkap}
+         * Ruangan: {ruangan} (jika ada)
+         * No. Kursi: {nomor_kursi} (jika ada)
+       
+       - Peraturan Ujian (box dengan border):
+         * List peraturan dari pengaturan ujian (dari database)
+         * Contoh:
+           1. Peserta wajib hadir 30 menit sebelum ujian dimulai
+           2. Membawa kartu ujian dan identitas diri
+           3. Menggunakan pakaian sopan dan rapi
+           4. Tidak diperkenankan membawa HP dan alat komunikasi lainnya
+           5. (dan seterusnya dari database)
+       
+       - Footer:
+         * TTD Admin (kanan)
+         * Tanggal cetak
+     
+     * Button: "Download PDF" (btn-primary, large)
+     * Button: "Print" (btn-secondary)
+     * Info: "Kartu ujian sudah didownload {download_count} kali"
+     * Info: "Terakhir didownload: {downloaded_at}" (jika ada)
+   
+   - Setelah download/print:
+     * Update downloaded_at
+     * Increment download_count
+     * Log activity 'download_kartu_ujian'
+     * Generate PDF dengan library DomPDF atau TCPDF
+     * Set filename: Kartu_Ujian_{nomor_peserta}.pdf
+
+### 5. Pengumuman (/user/pengumuman)
+   - Breadcrumb: Dashboard / Pengumuman Kelulusan
+   
+   - Logika akses:
+     * Cek is_published di table kelulusan
+     * Jika belum dipublish:
+       - Card dengan icon info
+       - Text: "Pengumuman kelulusan belum tersedia. Mohon tunggu informasi lebih lanjut."
+       - Info: "Anda akan mendapatkan notifikasi saat pengumuman telah tersedia."
+   
+   - Jika sudah dipublish:
+     * Card Result (centered, large):
+       - Jika LULUS:
+         * Background gradient green
+         * Icon trophy (large, gold)
+         * Text: "SELAMAT!" (h1, white, bold)
+         * Text: "Anda DITERIMA sebagai mahasiswa baru" (h3, white)
+         * Card putih di dalam:
+           - Nama: {nama_lengkap}
+           - Program Studi: {program_studi}
+           - Nomor Peserta: {nomor_peserta}
+           - Nilai: {nilai} (jika ada)
+           - Catatan: {catatan} (jika ada)
+           - Tanggal Pengumuman: {tanggal_pengumuman}
+         * Button: "Download Surat Penerimaan" (PDF)
+         * Confetti animation (JavaScript)
+       
+       - Jika TIDAK LULUS:
+         * Background gradient red
+         * Icon times-circle (large, white)
+         * Text: "MOHON MAAF" (h1, white, bold)
+         * Text: "Anda belum dapat kami terima pada kesempatan ini" (h3, white) 
+   * Card putih di dalam: 
+- Nama: {nama_lengkap} 
+- Program Studi: {program_studi} 
+- Nomor Peserta: {nomor_peserta} 
+- Catatan: {catatan} (jika ada) 
+- Tanggal Pengumuman: {tanggal_pengumuman} 
+* Text: "Terima kasih atas partisipasi Anda. Semangat untuk mencoba kembali!"
+•	PDF Surat Penerimaan (jika lulus): 
+o	Header: Logo + Nama Institusi
+o	Title: SURAT PENERIMAAN
+o	Nomor: {auto-generate}
+o	Tanggal: {tanggal_pengumuman}
+o	Body: Template formal surat penerimaan
+o	TTD: Direktur/Ketua
+o	Footer: Alamat institusi
+ROLE: ADMIN
+1. Dashboard Admin (/admin/dashboard)
+•	Breadcrumb: Dashboard
+•	Row 1: Statistics Cards (col-md-3): 
+o	Card 1: Total Pendaftar 
+	Icon: users
+	Value: {count all users dengan role user}
+	Footer: "Total pendaftar terdaftar"
+	Warna: primary
+o	Card 2: Profil Lengkap 
+	Icon: user-check
+	Value: {count profiles dengan is_complete = true}
+	Footer: "Profil sudah dilengkapi"
+	Warna: success
+o	Card 3: Berkas Lengkap 
+	Icon: file-check
+	Value: {count user yang semua berkas wajib sudah verified}
+	Footer: "Berkas terverifikasi lengkap"
+	Warna: info
+o	Card 4: Total Lulus 
+	Icon: trophy
+	Value: {count kelulusan dengan status lulus}
+	Footer: "Mahasiswa diterima"
+	Warna: warning
+•	Row 2: Charts (col-md-6 each): 
+o	Chart 1: Pendaftar per Bulan (Bar Chart) 
+	Title: "Grafik Pendaftar Bulanan"
+	X-axis: Bulan (Jan, Feb, Mar, ...)
+	Y-axis: Jumlah pendaftar
+	Data: Count users created_at group by month
+	Library: Chart.js
+o	Chart 2: Status Kelulusan (Pie Chart) 
+	Title: "Statistik Kelulusan"
+	Segments: Lulus (green), Tidak Lulus (red), Pending (gray)
+	Percentage di setiap segment
+	Library: Chart.js
+•	Row 3: Tabel Aktivitas Terakhir (col-md-12): 
+o	Title: "Aktivitas Terbaru"
+o	DataTable dengan column: 
+	No
+	Username
+	Aktivitas
+	Waktu
+	IP Address
+o	Show 10 latest activities
+o	Button: "Lihat Semua" -> /admin/activity-logs
+•	Row 4: Quick Actions (Card dengan button-button): 
+o	Button: "Tambah User Baru" -> /admin/users/create
+o	Button: "Verifikasi Berkas" -> /admin/berkas
+o	Button: "Setting Ujian" -> /admin/ujian/setting
+o	Button: "Input Kelulusan" -> /admin/kelulusan
+2. Manajemen User (/admin/users)
+•	Breadcrumb: Dashboard / Manajemen / Users
+•	Card Header: 
+o	Title: "Data User"
+o	Button: "Tambah User" (btn-primary) -> modal create
+o	Button: "Import Excel" (btn-success) -> modal import
+o	Button: "Export Excel" (btn-info) -> download excel
+•	DataTable: 
+o	Column: 
+1.	No (auto number)
+2.	Username
+3.	Role (badge: admin=danger, user=primary)
+4.	Status (badge: active=success, inactive=secondary)
+5.	Last Login (format: d M Y H:i)
+6.	Created At (format: d M Y)
+7.	Action (dropdown button): 
+	Edit (modal)
+	Reset Password (confirm dialog)
+	Toggle Active/Inactive (confirm dialog)
+	Delete (confirm dialog, soft delete)
+o	Features: 
+	Search global
+	Pagination (10, 25, 50, 100)
+	Sorting setiap column
+	Filter by Role (dropdown)
+	Filter by Status (dropdown)
+	Responsive mode (mobile)
+•	Modal Create User: 
+o	Form: 
+	Username (required, unique)
+	Password (required, min 8)
+	Confirm Password (required)
+	Role (select: admin/user, default user)
+	Status (toggle: active/inactive, default active)
+o	Button: Simpan, Batal
+o	Validasi real-time
+o	Setelah save: refresh DataTable, close modal, success toast
+•	Modal Edit User: 
+o	Form sama dengan create, kecuali: 
+	Username (readonly, tidak bisa diubah)
+	Password (kosong, tidak wajib diisi)
+	Jika password diisi, maka akan update password
+	Info: "Kosongkan password jika tidak ingin mengubah"
+o	Button: Update, Batal
+•	Reset Password Function: 
+o	Confirm dialog: "Reset password untuk user {username}?"
+o	Generate password random 8 karakter (huruf + angka)
+o	Update password di database (hash)
+o	Tampilkan alert dengan password baru: "Password baru: {password}. Salin dan berikan ke user."
+o	Button: "Salin Password"
+o	Log activity 'admin_reset_password'
+•	Toggle Active Function: 
+o	Confirm dialog: "Nonaktifkan user {username}?" atau "Aktifkan user {username}?"
+o	Update is_active di database
+o	Refresh DataTable
+o	Success toast
+o	Log activity 'admin_toggle_user_status'
+•	Delete Function: 
+o	Confirm dialog: "Hapus user {username}? Data tidak dapat dikembalikan."
+o	Soft delete (set deleted_at)
+o	Refresh DataTable
+o	Success toast
+o	Log activity 'admin_delete_user'
+•	Import Excel Function: 
+o	Modal dengan form: 
+	Button: "Download Template" (excel kosong dengan header yang benar)
+	File input: Upload Excel
+	Info: "Format: xlsx/xls, Max 5MB"
+o	Template column: username, password, role (admin/user)
+o	Setelah upload: 
+	Validasi struktur file
+	Preview data dalam tabel (max 100 row preview)
+	Show error jika ada (username duplicate, dll)
+	Button: "Import Data" (hanya muncul jika tidak ada error)
+	Button: "Batal"
+o	Setelah import: 
+	Bulk insert ke database
+	Password otomatis di-hash
+	Success message: "Berhasil import X user"
+	Refresh DataTable
+	Log activity 'admin_import_users'
+•	Export Excel Function: 
+o	Generate excel dengan column: username, role, status, last_login, created_at
+o	Filename: Users_{tanggal}.xlsx
+o	Download otomatis
+o	Log activity 'admin_export_users'
+3. Manajemen Profil Mahasiswa (/admin/profiles)
+•	Breadcrumb: Dashboard / Manajemen / Profil Mahasiswa
+•	Card Header: 
+o	Title: "Data Profil Mahasiswa"
+o	Button: "Import Excel" (btn-success)
+o	Button: "Export Excel" (btn-info)
+•	Filter Section (collapsible): 
+o	Filter by Program Studi (select)
+o	Filter by Status Profil (select: Lengkap/Belum Lengkap)
+o	Filter by Tahun Kelulusan (select)
+o	Button: "Terapkan Filter", "Reset Filter"
+•	DataTable: 
+o	Column: 
+1.	No
+2.	Foto (thumbnail 50x50px)
+3.	Username
+4.	Nama Lengkap
+5.	Jenis Kelamin (L/P)
+6.	Program Studi
+7.	Asal Sekolah
+8.	Email Aktif
+9.	No HP Aktif
+10.	Status (badge: Lengkap=success, Belum=warning)
+11.	Action: 
+	View Detail (modal)
+	Edit (modal)
+	Delete (confirm, soft delete)
+o	Features: Search, pagination, sorting, responsive
+•	Modal View Detail: 
+o	Layout 2 kolom: 
+	Kolom kiri: Foto profil (besar)
+	Kolom kanan: Semua data profil (read-only)
+o	Button: Close, Edit (open modal edit)
+•	Modal Edit Profile: 
+o	Form lengkap seperti di user profile
+o	Button: Update, Batal
+o	Validasi sama
+o	Setelah update: 
+	Refresh DataTable
+	Success toast
+	Log activity 'admin_update_profile'
+•	Import Excel: 
+o	Template column: username, nama_lengkap, jenis_kelamin, tempat_lahir, tanggal_lahir, asal_sekolah, tahun_kelulusan, alamat, email_aktif, no_hp_aktif, program_studi
+o	Validasi: username harus exist di users
+o	Preview & import flow sama seperti import users
+•	Export Excel: 
+o	Export semua data profil dengan foto (URL)
+o	Filename: Profil_Mahasiswa_{tanggal}.xlsx
+4. Manajemen Pemberkasan (/admin/berkas)
+•	Breadcrumb: Dashboard / Manajemen / Pemberkasan
+•	Card Header: 
+o	Title: "Verifikasi Berkas Mahasiswa"
+o	Badge: X berkas menunggu verifikasi (pending count)
+•	Filter Section: 
+o	Filter by User (select2 dengan search)
+o	Filter by Jenis Berkas (select)
+o	Filter by Status (select: Pending/Verified/Rejected)
+o	Filter by Tanggal Upload (date range picker)
+o	Button: "Terapkan Filter", "Reset Filter"
+•	DataTable: 
+o	Column: 
+1.	No
+2.	Tanggal Upload (sort by default: latest first)
+3.	Nama Mahasiswa
+4.	Username
+5.	Jenis Berkas
+6.	File (button "Lihat")
+7.	Status (badge: pending=warning, verified=success, rejected=danger)
+8.	Verified By (jika sudah verified/rejected)
+9.	Action: 
+	Preview & Verify (modal, jika pending)
+	View Detail (modal, jika sudah verified/rejected)
+	Change Status (button, untuk ubah verified jadi rejected atau sebaliknya)
+o	Quick Filter Button di atas tabel: 
+	"Semua" (default)
+	"Pending" (filter status=pending)
+	"Verified"
+	"Rejected"
+•	Modal Preview & Verify: 
+o	Layout: 
+	Header: Nama Mahasiswa | Username | Jenis Berkas
+	Body: 
+	Preview file (fullscreen): 
+	PDF: embed viewer dengan zoom control
+	Image: display dengan zoom in/out
+	Info detail: 
+	Filename: {original_name}
+	Size: {size} KB
+	Upload date: {uploaded_at}
+	Footer: 
+	Radio/Select: Terima / Tolak
+	Textarea: Catatan (wajib jika tolak, optional jika terima)
+	Button: "Simpan Verifikasi" (btn-primary)
+	Button: "Batal" (btn-secondary)
+o	Setelah verifikasi: 
+	Update status di database
+	Set verified_by = admin user_id
+	Set verified_at = now()
+	Refresh DataTable
+	Success toast
+	Log activity 'admin_verify_berkas'
+•	Bulk Verify Function: 
+o	Checkbox di setiap row DataTable
+o	Checkbox "Select All" di header
+o	Button "Bulk Verify" (muncul jika ada yang dicentang)
+o	Modal bulk verify: 
+	List file yang dipilih
+	Select: Terima Semua / Tolak Semua
+	Textarea: Catatan (akan sama untuk semua)
+	Button: "Proses", "Batal"
+o	Setelah proses: update all selected, refresh, success toast
+•	Export Laporan Pemberkasan: 
+o	Button di card header
+o	Export Excel dengan column: 
+	Nama Mahasiswa
+	Username
+	Jenis Berkas
+	Status
+	Verified By
+	Verified At
+	Catatan
+o	Filter sesuai dengan filter yang aktif
+o	Filename: Laporan_Pemberkasan_{tanggal}.xlsx
+5. Pengaturan Jenis Berkas (/admin/berkas/jenis)
+•	Breadcrumb: Dashboard / Ujian / Pengaturan Jenis Berkas
+•	Card Header: 
+o	Title: "Master Jenis Berkas"
+o	Button: "Tambah Jenis Berkas" (modal create)
+•	Table (bukan DataTable, karena tidak banyak data): 
+o	Column: 
+1.	No
+2.	Drag Handle (icon untuk drag & drop urutan)
+3.	Kode
+4.	Nama Berkas
+5.	Wajib (badge: Ya=danger, Tidak=secondary)
+6.	Status (badge: Aktif=success, Nonaktif=secondary)
+7.	Keterangan
+8.	Action: 
+	Edit (modal)
+	Toggle Active/Inactive
+	Delete (confirm, permanent delete)
+o	Feature: Drag & drop untuk ubah urutan 
+	Library: SortableJS atau jQuery UI Sortable
+	Ajax update urutan setelah drag
+•	Modal Create/Edit: 
+o	Form: 
+	Kode (text, uppercase, alpha_dash, unique, required)
+	Nama Berkas (text, required)
+	Keterangan (textarea, optional)
+	Is Required (toggle: Ya/Tidak, default Ya)
+	Is Active (toggle: Aktif/Nonaktif, default Aktif)
+	Urutan (number, auto-fill berdasarkan urutan terakhir +1)
+o	Button: Simpan, Batal
+o	Setelah save: refresh table, close modal, success toast
+6. Pengaturan Ujian (/admin/ujian/setting)
+•	Breadcrumb: Dashboard / Ujian / Pengaturan Ujian
+•	Card Header: 
+o	Title: "Pengaturan Jadwal Ujian"
+o	Button: "Tambah Pengaturan" (modal create)
+•	DataTable: 
+o	Column: 
+1.	No
+2.	Tahun Akademik
+3.	Gelombang
+4.	Tanggal Ujian
+5.	Waktu (format: 08:00 - 10:00)
+6.	Tempat Ujian
+7.	Kuota
+8.	Status (badge: Aktif=success, Nonaktif=secondary)
+9.	Action: 
+	Edit (modal)
+	Edit Peraturan (modal khusus)
+	Set Active (hanya 1 yang bisa aktif)
+	Delete (confirm)
+o	Default sort: tahun_akademik DESC, gelombang DESC
+•	Modal Create/Edit Pengaturan: 
+o	Form: 
+	Tahun Akademik (text, format: 2025/2026, required, pattern validation)
+	Gelombang (number, required)
+	Tanggal Ujian (datepicker, required)
+	Waktu Mulai (timepicker, required)
+	Waktu Selesai (timepicker, required, harus > waktu mulai)
+	Tempat Ujian (text, required)
+	Alamat Lengkap (textarea, required)
+	Kuota (number, default 0, optional)
+	Status (toggle: Aktif/Nonaktif, default Nonaktif)
+o	Button: Simpan, Batal
+o	Validasi: 
+	Unique: tahun_akademik + gelombang
+	Waktu selesai > waktu mulai
+o	Setelah save: refresh DataTable, close modal, success toast
+•	Modal Edit Peraturan Ujian: 
+o	Title: "Peraturan Ujian - {Tahun Akademik} Gelombang {X}"
+o	Rich Text Editor (TinyMCE atau CKEditor): 
+	Numbered list untuk peraturan
+	Bold, italic, underline
+	Font size
+o	Atau Textarea biasa dengan auto-numbered list di frontend
+o	Default content (jika belum ada):
+       1. Peserta wajib hadir 30 menit sebelum ujian dimulai
+       2. Membawa kartu ujian dan identitas diri (KTP/KK)
+       3. Menggunakan pakaian sopan dan rapi
+       4. Tidak diperkenankan membawa HP dan alat komunikasi lainnya
+       5. Mengerjakan soal dengan jujur dan tidak bekerja sama
+       6. Mengikuti seluruh rangkaian ujian sampai selesai
+* Button: Simpan, Batal
+ * Setelah save: update peraturan_ujian di database, success toast
+•	Set Active Function: 
+o	Confirm dialog: "Aktifkan pengaturan ujian ini? Pengaturan lain akan otomatis nonaktif."
+o	Update: set semua is_active = false, lalu set yang dipilih is_active = true
+o	Refresh DataTable
+o	Success toast
+o	Log activity 'admin_set_active_ujian'
+7. Generate Kartu Ujian (/admin/ujian/kartu-ujian)
+•	Breadcrumb: Dashboard / Ujian / Generate Kartu Ujian
+•	Alert Info (jika tidak ada pengaturan ujian aktif): 
+o	"Tidak ada pengaturan ujian yang aktif. Silakan aktifkan pengaturan ujian terlebih dahulu."
+o	Button: "Ke Pengaturan Ujian"
+•	Card Header: 
+o	Title: "Generate Kartu Ujian"
+o	Info: "Pengaturan Ujian Aktif: {Tahun Akademik} Gelombang {X}"
+o	Button: "Regenerate All" (dengan confirm, untuk regenerate semua)
+o	Button: "Export All PDF" (download ZIP berisi semua kartu ujian PDF)
+•	Filter Eligible Users: 
+o	Eligible criteria: 
+1.	Role = user
+2.	is_complete = true (profil lengkap)
+3.	Semua berkas WAJIB status = verified
+o	Info: "{count} peserta eligible untuk generate kartu ujian"
+•	DataTable Eligible Users: 
+o	Column: 
+1.	Checkbox (untuk bulk generate)
+2.	No
+3.	Foto (thumbnail)
+4.	Username
+5.	Nama Lengkap
+6.	Nomor Peserta (jika sudah digenerate, link preview)
+7.	Ruangan
+8.	No. Kursi
+9.	Status (badge: Generated=success, Belum=secondary)
+10.	Action: 
+	Generate (button, jika belum)
+	Preview Kartu (modal, jika sudah)
+	Regenerate (button, dengan confirm)
+	Edit Info Ujian (modal untuk edit ruangan/kursi)
+o	Checkbox "Select All"
+o	Button "Bulk Generate" (muncul jika ada yang dicentang)
+•	Generate Function (Single): 
+o	Modal Form: 
+	Nomor Peserta (text, required, unique, auto-fill: PMB-{tahun}-{counter}) 
+	Counter = 001, 002, 003, dst (3 digit)
+	Example: PMB-2025-001
+	Ruangan (text, optional)
+	No. Kursi (text, optional)
+	Preview auto-generate barcode dari nomor peserta
+o	Button: "Generate", "Batal"
+o	Setelah generate: 
+	Insert ke table kartu_ujian
+	Set generated_at = now(), generated_by = admin_id
+	Refresh DataTable
+	Success toast
+	Log activity 'admin_generate_kartu_ujian'
+•	Bulk Generate Function: 
+o	Modal: 
+	Info: "{count} peserta akan di-generate"
+	Option: 
+	Auto nomor peserta (PMB-{tahun}-001, 002, dst)
+	Auto ruangan & kursi (optional): 
+	Pattern ruangan: R{number} (R1, R2, R3, ...)
+	Kapasitas per ruangan: {input number, default 30}
+	Pattern kursi: 1, 2, 3, ... (auto increment per ruangan)
+	Preview alokasi (tabel preview): 
+	Nama | Nomor Peserta | Ruangan | Kursi
+o	Button: "Generate Semua", "Batal"
+o	Setelah generate: bulk insert, refresh, success toast
+•	Modal Preview Kartu Ujian: 
+o	Sama dengan preview di user side
+o	Button: "Download PDF", "Print", "Close"
+•	Export All PDF Function: 
+o	Generate semua kartu ujian yang sudah di-generate
+o	Create ZIP file berisi PDF per peserta
+o	Filename ZIP: Kartu_Ujian_All_{tanggal}.zip
+o	Filename PDF: Kartu_Ujian_{nomor_peserta}.pdf
+o	Download otomatis
+o	Log activity 'admin_export_kartu_ujian_all'
+8. Verifikasi Kelulusan (/admin/kelulusan)
+•	Breadcrumb: Dashboard / Ujian / Verifikasi Kelulusan
+•	Card Header: 
+o	Title: "Input & Verifikasi Kelulusan"
+o	Info: "Pengaturan Ujian Aktif: {Tahun Akademik} Gelombang {X}"
+o	Button: "Import Excel" (bulk input)
+o	Button: "Export Hasil" (download hasil kelulusan)
+o	Toggle: "Publish Pengumuman" (untuk show/hide ke user) 
+	Jika aktif: pengumuman visible di user side
+	Jika nonaktif: pengumuman hidden
+	Confirm sebelum toggle
+•	Statistics Cards (row di atas table): 
+o	Card 1: Total Peserta Ujian (count kartu_ujian)
+o	Card 2: Sudah Input Kelulusan (count kelulusan where status != pending)
+o	Card 3: Lulus (count status = lulus)
+o	Card 4: Tidak Lulus (count status = tidak_lulus)
+•	Filter Section: 
+o	Filter by Status (select: Semua/Lulus/Tidak Lulus/Pending)
+o	Filter by Nama/Nomor Peserta (search)
+o	Button: "Terapkan Filter", "Reset Filter"
+•	DataTable: 
+o	Data source: JOIN kartu_ujian + users + profiles + kelulusan
+o	Column: 
+1.	Checkbox (untuk bulk input)
+2.	No
+3.	Foto (thumbnail)
+4.	Nomor Peserta
+5.	Nama Lengkap
+6.	Program Studi
+7.	Status Kelulusan (badge: pending/lulus/tidak_lulus)
+8.	Nilai (jika ada)
+9.	Action: 
+	Input Kelulusan (modal, jika pending)
+	Edit Kelulusan (modal, jika sudah input)
+	View Detail (modal)
+o	Default sort: nomor_peserta ASC
+o	Quick filter button: Semua | Pending | Lulus | Tidak Lulus
+•	Modal Input/Edit Kelulusan: 
+o	Header: Nama Lengkap | Nomor Peserta
+o	Form: 
+	Status Kelulusan (select/radio: Lulus/Tidak Lulus, required)
+	Nilai (number, decimal 2, optional, range 0-100)
+	Catatan (textarea, optional)
+	Info: "Tanggal pengumuman akan tercatat otomatis saat menyimpan"
+o	Button: "Simpan", "Batal"
+o	Setelah save: 
+	Insert/Update table kelulusan
+	Set tanggal_pengumuman = now() (jika belum ada)
+	Set diumumkan_oleh = admin_id
+	Refresh DataTable
+	Success toast
+	Log activity 'admin_input_kelulusan'
+•	Bulk Input via Excel: 
+o	Modal: 
+	Button: "Download Template" (excel dengan column: nomor_peserta, status, nilai, catatan)
+	File input: Upload Excel
+	Info: "Status: lulus / tidak_lulus"
+o	Setelah upload: 
+	Validasi: 
+	Nomor peserta harus exist
+	Status harus lulus/tidak_lulus
+	Nilai 0-100 (jika ada)
+	Preview data dalam tabel
+	Show error jika ada (highlight row error)
+	Column preview: Nomor Peserta | Nama | Status | Nilai | Catatan | Validation
+	Button: "Import Data" (hanya jika tidak ada error), "Batal"
+o	Setelah import: 
+	Bulk insert/update kelulusan
+	Success message: "Berhasil import X data kelulusan"
+	Refresh DataTable
+	Log activity 'admin_bulk_import_kelulusan'
+•	Export Hasil Kelulusan: 
+o	Generate Excel dengan column: 
+	Nomor Peserta
+	Nama Lengkap
+	Program Studi
+	Asal Sekolah
+	Status Kelulusan
+	Nilai
+	Catatan
+	Tanggal Pengumuman
+o	Filter sesuai filter aktif
+o	Filename: Hasil_Kelulusan_{tahun_akademik}Gelombang{X}_{tanggal}.xlsx
+o	Download otomatis
+o	Log activity 'admin_export_kelulusan'
+•	Publish Pengumuman Function: 
+o	Toggle switch di card header
+o	Confirm dialog: "Publish pengumuman kelulusan? Peserta akan dapat melihat hasil kelulusan mereka."
+o	Update semua is_published = true/false di table kelulusan (untuk pengaturan ujian aktif)
+o	Success toast
+o	Log activity 'admin_publish_pengumuman'
+9. Laporan (/admin/laporan)
+•	Breadcrumb: Dashboard / Laporan
+•	Tab Navigation: 
+o	Tab 1: Laporan Pendaftar
+o	Tab 2: Laporan Kelulusan
+o	Tab 3: Laporan Pemberkasan
+Tab 1: Laporan Pendaftar
+•	Filter: 
+o	Periode Pendaftaran (date range picker, default bulan ini)
+o	Program Studi (select, default all)
+o	Status Profil (select: Semua/Lengkap/Belum)
+•	Button: "Tampilkan Laporan", "Export PDF", "Export Excel"
+•	Summary Cards: 
+o	Total Pendaftar (pada periode)
+o	Profil Lengkap
+o	Berkas Lengkap
+o	Eligible untuk Ujian
+•	Chart: Trend Pendaftar (Line Chart) 
+o	X-axis: Tanggal (per hari/minggu/bulan, sesuai range)
+o	Y-axis: Jumlah pendaftar
+•	Detail Table: 
+o	Column: No, Tanggal Daftar, Username, Nama, Program Studi, Status Profil, Progress Berkas
+o	Export sesuai filter
+Tab 2: Laporan Kelulusan
+•	Filter: 
+o	Tahun Akademik (select)
+o	Gelombang (select)
+o	Status (select: Semua/Lulus/Tidak Lulus)
+•	Button: "Tampilkan Laporan", "Export PDF", "Export Excel"
+•	Summary Cards: 
+o	Total Peserta Ujian
+o	Lulus (+ persentase)
+o	Tidak Lulus (+ persentase)
+o	Rata-rata Nilai (jika ada nilai)
+•	Chart: Statistik Kelulusan (Doughnut Chart) 
+o	Lulus vs Tidak Lulus
+o	Percentage label
+•	Detail Table: 
+o	Column: No, Nomor Peserta, Nama, Program Studi, Status, Nilai, Tanggal Pengumuman
+o	Export sesuai filter
+Tab 3: Laporan Pemberkasan
+•	Filter: 
+o	Periode Upload (date range)
+o	Status Berkas (select: Semua/Verified/Pending/Rejected)
+o	Jenis Berkas (select)
+•	Button: "Tampilkan Laporan", "Export PDF", "Export Excel"
+•	Summary Cards: 
+o	Total Berkas Diupload
+o	Verified
+o	Pending
+o	Rejected
+•	Chart: Progress Verifikasi (Bar Chart) 
+o	X-axis: Jenis Berkas
+o	Y-axis: Jumlah
+o	Grouped bar: Verified, Pending, Rejected
+•	Detail Table: 
+o	Column: No, Nama Mahasiswa, Jenis Berkas, Tanggal Upload, Status, Verified By
+o	Export sesuai filter
+10. Activity Logs (/admin/activity-logs)
+•	Breadcrumb: Dashboard / Activity Logs
+•	Card Header: 
+o	Title: "Log Aktivitas Sistem"
+o	Info: "Menampilkan semua aktivitas penting dalam sistem"
+•	Filter Section: 
+o	Filter by User (select2 dengan search)
+o	Filter by Activity Type (select: All, login, logout, upload, delete, dll)
+o	Filter by Date Range (date range picker)
+o	Button: "Terapkan Filter", "Reset Filter", "Export Excel"
+•	DataTable: 
+o	Column: 
+1.	No
+2.	Waktu (format: d M Y H:i:s)
+3.	Username
+4.	Role (badge)
+5.	Activity Type (badge dengan warna berbeda per type)
+6.	Description
+7.	IP Address
+8.	Action: View Detail (modal untuk lihat user_agent dan URL)
+o	Default sort: created_at DESC
+o	Pagination: 25 per page
+o	Search global
+•	Modal View Detail
+: * Display semua info log lengkap: - Username - Activity Type - Description - URL - Method - IP Address - User Agent (formatted) - Timestamp * Button: Close
+11. Pengaturan Sistem (/admin/settings)
+•	Breadcrumb: Dashboard / Pengaturan Sistem
+•	Tab Navigation:
+o	Tab 1: Informasi Umum
+o	Tab 2: Backup Database
+Tab 1: Informasi Umum
+•	Form: 
+o	Nama Institusi (text, required)
+o	Alamat Lengkap (textarea, required)
+o	No. Telepon (text)
+o	Email (email)
+o	Website (url, optional)
+o	Logo Institusi (file upload, image, max 2MB) 
+	Preview logo
+	Info: "Rekomendasi ukuran: 200x200px, PNG transparan"
+o	Nama Direktur/Ketua (text, untuk TTD surat)
+o	NIP Direktur (text, optional)
+•	Button: "Simpan Pengaturan"
+•	Setelah save: success toast, log activity
+Tab 2: Backup Database
+•	Info: "Lakukan backup database secara berkala untuk keamanan data"
+•	Card: 
+o	Last Backup: {tanggal} (jika pernah backup)
+o	Button: "Backup Sekarang" (btn-primary, large)
+o	Loading indicator saat proses backup
+•	Setelah klik backup: 
+o	Generate SQL dump file
+o	Compress ke ZIP (optional)
+o	Filename: Backup_PMB_{tanggal}_{waktu}.sql atau .zip
+o	Download otomatis
+o	Update last backup timestamp di session/database
+o	Success toast
+o	Log activity 'admin_backup_database'
+•	History Backup (optional, jika disimpan di server): 
+o	List 10 backup terakhir
+o	Column: Tanggal, Filename, Size, Action (Download, Delete)
+=== VALIDASI & KEAMANAN (DETAIL) ===
+1.	File Upload Security:
+o	Server-side validation:
+o	// Validate file
+o	$allowed_types = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
+o	$max_size = 5 * 1024 * 1024; // 5MB in bytes
+o	
+o	if (!in_array($file->getMimeType(), $allowed_types)) {
+o	    return error('Tipe file tidak diperbolehkan');
+o	}
+o	
+o	if ($file->getSize() > $max_size) {
+o	    return error('Ukuran file maksimal 5MB');
+o	}
+o	
+o	// Generate unique filename
+o	$filename = md5(time() . $file->getClientOriginalName()) . '.' . $file->extension();
+o	
+o	// Store outside public root
+o	$path = storage_path('app/berkas/');
+o	$file->move($path, $filename);
+o	Create .htaccess di storage/app/berkas/:
+o	Order Deny,Allow
+o	Deny from all
+o	Route khusus untuk serve file (dengan auth check):
+o	Route::get('/berkas/view/{id}', 'BerkasController@viewFile')
+o	     ->middleware('auth')
+o	     ->name('berkas.view');
+2.	Password Hashing:
+3.	use Illuminate\Support\Facades\Hash;
+4.	
+5.	// Hash password saat create/update
+6.	$user->password = Hash::make($request->password);
+7.	
+8.	// Verify password saat login
+9.	if (Hash::check($request->password, $user->password)) {
+10.	    // Password correct
+11.	}
+12.	CSRF Protection:
+o	Setiap form harus ada @csrf blade directive
+13.	<form method="POST">
+14.	    @csrf
+15.	    <!-- form fields -->
+16.	</form>
+o	Ajax request harus include CSRF token:
+17.	$.ajaxSetup({
+18.	    headers: {
+19.	        'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+20.	    }
+21.	});
+22.	SQL Injection Prevention:
+o	ALWAYS use Eloquent or Query Builder:
+23.	// GOOD - menggunakan Eloquent
+24.	$users = User::where('username', $request->username)->first();
+25.	
+26.	// GOOD - menggunakan Query Builder dengan binding
+27.	$users = DB::table('users')->where('username', '=', $request->username)->get();
+28.	
+29.	// BAD - raw query tanpa binding (JANGAN DIGUNAKAN)
+30.	$users = DB::select("SELECT * FROM users WHERE username = '" . $request->username . "'");
+31.	XSS Prevention:
+o	Blade auto-escape dengan {{ }}:
+32.	// Auto escaped (SAFE)
+33.	{{ $user->nama_lengkap }}
+34.	
+35.	// Raw HTML (HANYA untuk trusted content)
+36.	{!! $pengaturan_ujian->peraturan_ujian !!}
+o	Sanitize input sebelum save ke database:
+37.	use Illuminate\Support\Str;
+38.	
+39.	$data['nama_lengkap'] = strip_tags($request->nama_lengkap);
+40.	$data['alamat'] = e($request->alamat); // HTML entities encode
+41.	Session Security:
+o	Config di config/session.php:
+42.	'lifetime' => 120, // 2 jam
+43.	'expire_on_close' => false,
+44.	'encrypt' => true,
+45.	'secure' => env('SESSION_SECURE_COOKIE', false), // true jika HTTPS
+46.	'http_only' => true,
+47.	'same_site' => 'lax',
+o	Regenerate session ID setelah login:
+48.	session()->regenerate();
+o	Clear session saat logout:
+49.	session()->flush();
+50.	session()->regenerate();
+51.	Activity Logging Function:
+52.	// Helper function untuk log activity
+53.	function log_activity($activity_type, $description = null, $user_id = null) {
+54.	    \App\Models\ActivityLog::create([
+55.	        'user_id' => $user_id ?: auth_id(),
+56.	        'username' => $user_id ? \App\Models\User::find($user_id)->username : auth_user()['username'],
+57.	        'activity_type' => $activity_type,
+58.	        'description' => $description,
+59.	        'url' => request()->fullUrl(),
+60.	        'method' => request()->method(),
+61.	        'ip_address' => request()->ip(),
+62.	        'user_agent' => request()->userAgent(),
+63.	    ]);
+64.	}
+65.	
+66.	// Usage
+67.	log_activity('login', 'User logged in successfully');
+68.	log_activity('upload_berkas', 'Uploaded: ' . $jenis_berkas->nama_berkas);
+69.	Rate Limiting (Optional, untuk prevent brute force):
+o	Middleware throttle untuk login:
+70.	Route::post('/login', 'Auth\LoginController@login')
+71.	     ->middleware('throttle:5,1'); // 5 attempts per minute
+=== UI/UX DETAILS ===
+1.	Loading Indicators:
+o	Button loading state:
+2.	$('button').click(function() {
+3.	    $(this).html('<i class="fas fa-spinner fa-spin"></i> Processing...').prop('disabled', true);
+4.	});
+o	Page overlay loading:
+5.	// Show overlay
+6.	$('body').append('<div class="overlay"><i class="fas fa-spinner fa-spin fa-3x"></i></div>');
+7.	
+8.	// Hide overlay
+9.	$('.overlay').remove();
+10.	Notification/Toast (SweetAlert2):
+11.	// Success toast
+12.	Swal.fire({
+13.	    toast: true,
+14.	    position: 'top-end',
+15.	    icon: 'success',
+16.	    title: 'Data berhasil disimpan',
+17.	    showConfirmButton: false,
+18.	    timer: 3000
+19.	});
+20.	
+21.	// Error alert
+22.	Swal.fire({
+23.	    icon: 'error',
+24.	    title: 'Oops...',
+25.	    text: 'Terjadi kesalahan!',
+26.	});
+27.	
+28.	// Confirm dialog
+29.	Swal.fire({
+30.	    title: 'Apakah Anda yakin?',
+31.	    text: "Data tidak dapat dikembalikan!",
+32.	    icon: 'warning',
+33.	    showCancelButton: true,
+34.	    confirmButtonColor: '#d33',
+35.	    cancelButtonColor: '#3085d6',
+36.	    confirmButtonText: 'Ya, hapus!',
+37.	    cancelButtonText: 'Batal'
+38.	}).then((result) => {
+39.	    if (result.isConfirmed) {
+40.	        // Proceed delete
+41.	    }
+42.	});
+43.	Form Validation (Client-side):
+44.	// jQuery Validation
+45.	$('form').validate({
+46.	    rules: {
+47.	        username: {
+48.	            required: true,
+49.	            minlength: 5,
+50.	            maxlength: 50,
+51.	            alphadash: true
+52.	        },
+53.	        password: {
+54.	            required: true,
+55.	            minlength: 8
+56.	        },
+57.	        password_confirmation: {
+58.	            required: true,
+59.	            equalTo: '#password'
+60.	        },
+61.	        email_aktif: {
+62.	            required: true,
+63.	            email: true
+64.	        }
+65.	    },
+66.	    messages: {
+67.	        username: {
+68.	            required: 'Username wajib diisi',
+69.	            minlength: 'Username minimal 5 karakter',
+70.	            alphadash: 'Username hanya boleh huruf, angka, dash, underscore'
+71.	        },
+72.	        // ... custom messages
+73.	    },
+74.	    errorElement: 'span',
+75.	    errorClass: 'invalid-feedback',
+76.	    highlight: function(element) {
+77.	        $(element).addClass('is-invalid');
+78.	    },
+79.	    unhighlight: function(element) {
+80.	        $(element).removeClass('is-invalid');
+81.	    }
+82.	});
+83.	DataTables Configuration:
+84.	$('#table').DataTable({
+85.	    processing: true,
+86.	    serverSide: true, // untuk data besar
+87.	    ajax: '/admin/users/data',
+88.	    columns: [
+89.	        { data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false },
+90.	        { data: 'username', name: 'username' },
+91.	        { data: 'role', name: 'role' },
+92.	        { data: 'status', name: 'status' },
+93.	        { data: 'last_login', name: 'last_login' },
+94.	        { data: 'action', name: 'action', orderable: false, searchable: false }
+95.	    ],
+96.	    order: [[1, 'asc']],
+97.	    pageLength: 25,
+98.	    lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
+99.	    language: {
+100.	        url: '//cdn.datatables.net/plug-ins/1.10.24/i18n/Indonesian.json'
+101.	    },
+102.	    responsive: true,
+103.	    dom: 'Bfrtip',
+104.	    buttons: ['copy', 'excel', 'pdf', 'print']
+105.	});
+106.	Image Preview sebelum Upload:
+107.	$('#foto_profil').change(function() {
+108.	    let reader = new FileReader();
+109.	    reader.onload = function(e) {
+110.	        $('#preview_foto').attr('src', e.target.result).show();
+111.	    }
+112.	    reader.readAsDataURL(this.files[0]);
+113.	    
+114.	    // Validate size
+115.	    if (this.files[0].size > 2*1024*1024) {
+116.	        alert('Ukuran file maksimal 2MB');
+117.	        $(this).val('');
+118.	        $('#preview_foto').hide();
+119.	    }
+120.	});
+121.	Date & Time Picker:
+122.	// Datepicker
+123.	$('.datepicker').datepicker({
+124.	    format: 'yyyy-mm-dd',
+125.	    autoclose: true,
+126.	    todayHighlight: true
+127.	});
+128.	
+129.	// Timepicker
+130.	$('.timepicker').timepicker({
+131.	    showMeridian: false,
+132.	    defaultTime: '08:00'
+133.	});
+134.	
+135.	// Daterangepicker
+136.	$('.daterange').daterangepicker({
+137.	    locale: {
+138.	        format: 'DD/MM/YYYY'
+139.	    }
+140.	});
+=== ADDITIONAL NOTES ===
+1.	Folder Structure:
+app/
+├── Console/
+├── Exceptions/
+├── Helpers/
+│   └── AuthHelper.php
+├── Http/
+│   ├── Controllers/
+│   │   ├── Auth/
+│   │   │   ├── LoginController.php
+│   │   │   ├── RegisterController.php
+│   │   │   ├── ResetPasswordController.php
+│   │   │   └── LogoutController.php
+│   │   ├── Admin/
+│   │   │   ├── DashboardController.php
+│   │   │   ├── UserController.php
+│   │   │   ├── ProfileController.php
+│   │   │   ├── BerkasController.php
+│   │   │   ├── JenisBerkasController.php
+│   │   │   ├── UjianController.php
+│   │   │   ├── KartuUjianController.php
+│   │   │   ├── KelulusanController.php
+│   │   │   ├── LaporanController.php
+│   │   │   ├── ActivityLogController.php
+│   │   │   └── SettingController.php
+│   │   ├── User/
+│   │   │   ├── DashboardController.php
+│   │   │   ├── ProfileController.php
+│   │   │   ├── BerkasController.php
+│   │   │   ├── KartuUjianController.php
+│   │   │   └── PengumumanController.php
+│   │   └── HomeController.php
+│   └── Middleware/
+│       ├── AuthMiddleware.php
+│       ├── GuestMiddleware.php
+│       └── RoleMiddleware.php
+├── Models/
+│   ├── User.php
+│   ├── Profile.php
+│   ├── JenisBerkas.php
+│   ├── BerkasMahasiswa.php
+│   ├── PengaturanUjian.php
+│   ├── KartuUjian.php
+│   ├── Kelulusan.php
+│   └── ActivityLog.php
+└── Providers/
+
+database/
+├── migrations/
+│   ├── xxxx_create_users_table.php
+│   ├── xxxx_create_profiles_table.php
+│   ├── xxxx_create_jenis_berkas_table.php
+│   ├── xxxx_create_berkas_mahasiswa_table.php
+│   ├── xxxx_create_pengaturan_ujian_table.php
+│   ├── xxxx_create_kartu_ujian_table.php
+│   ├── xxxx_create_kelulusan_table.php
+│   ├── xxxx_create_activity_logs_table.php
+│   └── xxxx_create_sessions_table.php
+├── seeds/
+│   ├── DatabaseSeeder.php
+│   ├── UserSeeder.php
+│   └── JenisBerkasSeeder.php
+└── factories/
+
+resources/
+├── views/
+│   ├── layouts/
+│   │   ├── app.blade.php (AdminLTE master layout)
+│   │   └── guest.blade.php (layout untuk login/register)
+│   ├── auth/
+│   │   ├── login.blade.php
+│   │   ├── register.blade.php
+│   │   ├── forgot-password.blade.php
+│   │   └── reset-password.blade.php
+│   ├── admin/
+│   │   ├── dashboard.blade.php
+│   │   ├── users/
+│   │   ├── profiles/
+│   │   ├── berkas/
+│   │   ├── ujian/
+│   │   ├── kelulusan/
+│   │   ├── laporan/
+│   │   └── settings/
+│   ├── user/
+│   │   ├── dashboard.blade.php
+│   │   ├── profile.blade.php
+│   │   ├── berkas.blade.php
+│   │   ├── kartu-ujian.blade.php
+│   │   └── pengumuman.blade.php
+│   ├── home.blade.php (landing page)
+│   └── errors/
+│       ├── 403.blade.php
+│       └── 404.blade.php
+├── css/
+└── js/
+
+public/
+├── css/
+├── js/
+├── images/
+└── index.php
+
+storage/
+├── app/
+│   ├── berkas/ (uploaded files)
+│   └── public/
+└── logs/
+2.	Environment Configuration (.env):
+APP_NAME="PMB Teknologi Radiologi"
+APP_ENV=local
+APP_KEY=
+APP_DEBUG=true
+APP_URL=http://localhost
+
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=pmb_radiologi
+DB_USERNAME=root
+DB_PASSWORD=
+
+SESSION_DRIVER=database
+SESSION_LIFETIME=120
+
+FILESYSTEM_DRIVER=local
+3.	Composer Dependencies:
+{
+    "require": {
+        "php": "^7.4",
+        "laravel/framework": "5.8.*",
+        "maatwebsite/excel": "^3.1",
+        "barryvdh/laravel-dompdf": "^0.8.7"
+    }
+}
+4.	NPM Dependencies (package.json):
+{
+    "devDependencies": {
+        "bootstrap": "^4.6.0",
+        "admin-lte": "^3.1.0",
+        "jquery": "^3.6.0",
+        "datatables.net": "^1.10.24",
+        "datatables.net-bs4": "^1.10.24",
+        "select2": "^4.0.13",
+        "sweetalert2": "^11.0.0",
+        "chart.js": "^3.7.0",
+        "bootstrap-datepicker": "^1.9.0",
+        "bootstrap-timepicker": "^0.5.2",
+        "daterangepicker": "^3.1.0",
+        "@fortawesome/fontawesome-free": "^5.15.4"
+    }
+}
+5.	Seed Data Examples:
+UserSeeder.php:
+DB::table('users')->insert([
+    [
+        'username' => 'admin',
+        'password' => Hash::make('password'),
+        'role' => 'admin',
+        'is_active' => true,
+        'created_at' => now(),
+        'updated_at' => now()
+    ],
+    [
+        'username' => 'user01',
+        'password' => Hash::make('password'),
+        'role' => 'user',
+        'is_active' => true,
+        'created_at' => now(),
+        'updated_at' => now()
+    ]
+]);
+JenisBerkasSeeder.php: (sudah dijelaskan di atas)
+6.	PDF Generation (Kartu Ujian) dengan DomPDF:
+7.	use Barryvdh\DomPDF\Facade as PDF;
+8.	
+9.	public function downloadKartuUjian()
+10.	{
+11.	    $user_id = auth_id();
+12.	    $kartu = KartuUjian::with(['user.profile', 'pengaturanUjian'])
+13.	                       ->where('user_id', $user_id)
+14.	                       ->firstOrFail();
+15.	    
+16.	    // Update download stats
+17.	    $kartu->increment('download_count');
+18.	    $kartu->update(['downloaded_at' => now()]);
+19.	    
+20.	    // Generate barcode (bisa pakai library milon/barcode)
+21.	    $barcode = DNS1D::getBarcodePNG($kartu->nomor_peserta, 'C128');
+22.	    
+23.	    $data = [
+24.	        'kartu' => $kartu,
+25.	        'barcode' => $barcode
+26.	    ];
+27.	    
+28.	    $pdf = PDF::loadView('user.kartu-ujian-pdf', $data);
+29.	    $pdf->setPaper('a4', 'portrait');
+30.	    
+31.	    return $pdf->download('Kartu_Ujian_' . $kartu->nomor_peserta . '.pdf');
+32.	}
+33.	Excel Export dengan Maatwebsite:
+34.	use Maatwebsite\Excel\Facades\Excel;
+35.	use App\Exports\UsersExport;
+36.	
+37.	public function exportUsers()
+38.	{
+39.	    return Excel::download(new UsersExport, 'Users_' . date('Ymd') . '.xlsx');
+40.	}
+41.	
+42.	// App\Exports\UsersExport.php
+43.	use Maatwebsite\Excel\Concerns\FromCollection;
+44.	use Maatwebsite\Excel\Concerns\WithHeadings;
+45.	
+46.	class UsersExport implements FromCollection, WithHeadings
+47.	{
+48.	    public function collection()
+49.	    {
+50.	        return User::select('username', 'role', 'is_active', 'last_login', 'created_at')->get();
+51.	    }
+52.	    
+53.	    public function headings(): array
+54.	    {
+55.	        return ['Username', 'Role', 'Status', 'Last Login', 'Created At'];
+56.	    }
+57.	}
+58.	Middleware Registration (app/Http/Kernel.php):
+59.	protected $routeMiddleware = [
+60.	    'auth' => \App\Http\Middleware\AuthMiddleware::class,
+61.	    'guest' => \App\Http\Middleware\GuestMiddleware::class,
+62.	    'role' => \App\Http\Middleware\RoleMiddleware::class,
+63.	];
+64.	Helper AutoLoad (composer.json):
+65.	"autoload": {
+66.	    "psr-4": {
+67.	        "App\\": "app/"
+68.	    },
+69.	    "files": [
+70.	        "app/Helpers/AuthHelper.php"
+71.	    ]
+72.	}
+Jalankan: composer dump-autoload
+=== TESTING REQUIREMENTS ===
+1.	Data Dummy untuk Testing:
+o	1 akun admin: username admin, password password
+o	5 akun user dengan profil lengkap
+o	3 akun user dengan profil belum lengkap
+o	Upload berkas dummy untuk testing verifikasi
+o	1 pengaturan ujian aktif
+o	Data kelulusan untuk testing export & pengumuman
+2.	Manual Testing Checklist:
+o	[ ] Register user baru
+o	[ ] Login admin & user
+o	[ ] Lengkapi profil user
+o	[ ] Upload semua jenis berkas
+o	[ ] Admin verifikasi berkas (terima & tolak)
+o	[ ] Admin generate kartu ujian
+o	[ ] User download kartu ujian
+o	[ ] Admin input kelulusan
+o	[ ] User lihat pengumuman
+o	[ ] Export/Import Excel
+o	[ ] Reset password
+o	[ ] Logout
+=== DELIVERABLES FINAL ===
+1.	Source Code:
+o	Clean, commented, PSR-12 compliant
+o	Git repository dengan commits yang jelas
+o	.gitignore yang proper (exclude .env, vendor, node_modules, storage)
+2.	Database:
+o	SQL dump file (structure + seed data)
+o	Migration files yang lengkap
+o	Seeder untuk data testing
+3.	Documentation:
+o	README.md dengan installation guide
+o	ERD diagram (PDF/PNG)
+o	User manual PDF (untuk admin & user)
+o	Screenshot fitur-fitur utama
+4.	Deployment Files:
+o	.env.example
+o	composer.json & composer.lock
+o	package.json & package-lock.json
+Buatkan aplikasi PMB dengan spesifikasi lengkap di atas. Fokus pada:
+•	Clean code & best practices
+•	User experience yang smooth
+•	Security yang ketat
+•	Performance optimization
+•	Error handling yang baik
+Prioritaskan fungsionalitas yang stabil daripada fitur yang banyak tapi buggy.
+
+
+
+
